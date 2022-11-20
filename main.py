@@ -1,11 +1,8 @@
 import psycopg2
 
-
-def main():
-    conn = psycopg2.connect(database='postgres', user='postgres', password='1234567890', host='localhost', port='5434')
-
+# conn = psycopg2.connect(database='postgres', user='postgres', password='1234567890', host='localhost', port='5434')
+with psycopg2.connect(database='postgres', user='postgres', password='1234567890', host='localhost', port='5434') as conn:
     with conn.cursor() as cur:
-
         def create_DB(cursor):
 
             cursor.execute("""
@@ -26,14 +23,10 @@ def main():
                 );
                 """)
 
-            conn.commit()
-
-        def insert_new_clients(cursor, first_name, last_name, email, phone):
+        def insert_new_clients(cursor, first_name, last_name, email, phone=[]):
             cursor.execute("""
                 insert into clients (first_name, last_name, email, phone)
                 values (%s, %s, %s, %s)""", (first_name, last_name, email, phone))
-
-            conn.commit()
 
         def add_phone_clients(cursor, id, phone):
             cursor.execute("""
@@ -50,8 +43,6 @@ def main():
                 """, (phone, id))
             else:
                 print('Вы уже добавили этот номер')
-
-            conn.commit()
 
         def change_info_clients(cursor, id, first_name=None, last_name=None, email=None, phone=None):
             if first_name is not None:
@@ -74,12 +65,32 @@ def main():
                     """, (email, id))
             if phone is not None:
                 cursor.execute("""
-                    update clients
-                    set phone = %s
+                    select phone
+                    from clients
                     where id = %s
-                    """, (phone, id))
-
-            conn.commit()
+                """, (id,))
+                phones = cursor.fetchone()[0]
+                if len(phones) > 0:
+                    print('Номера клиента: ')
+                    for ph in phones:
+                        print(ph)
+                    change_phone = input("Введите номер, который хотите заменить... ")
+                    try:
+                        phones.remove(change_phone)
+                        phones.append(phone)
+                        cursor.execute("""
+                                       update clients
+                                       set phone = %s
+                                       where id = %s
+                                       """, (phones, id))
+                    except ValueError:
+                        print('Данного номера в списке нет')
+                else:
+                    cursor.execute("""
+                        update clients
+                        set phone = %s
+                        where id = %s
+                        """, ([phone], id))
 
         def drop_phone_clients(cursor, id, phone):
             cursor.execute("""
@@ -98,18 +109,15 @@ def main():
             else:
                 print('Данного номера в списке нет')
 
-            conn.commit()
-
         def delete_clients(cursor, id):
             cursor.execute("""
                 delete from clients
                 where id = %s
             """, (id,))
 
-            conn.commit()
-
         def select_clients(cursor, first_name=None, last_name=None, email=None, phone=None):
             search_atrr = {}
+            values = []
             s = 'select * from clients where'
             if first_name is not None:
                 search_atrr['first_name'] = first_name
@@ -118,11 +126,13 @@ def main():
             if email is not None:
                 search_atrr['email'] = email
             if phone is not None:
-                search_atrr['phone'] = phone
+                s += ' %s <@ (phone) and'
+                values.append(phone)
             for atrb, val in search_atrr.items():
-                s += f" {atrb} = '{val}' and"
+                s += f" {atrb} = %s and"
+                values.append(val)
             s = s[:-4]
-            cursor.execute(s)
+            cursor.execute(s, values)
             return cursor.fetchall()
 
         # Функция, создающая структуру БД (таблицы)
@@ -131,7 +141,7 @@ def main():
 
         # Функция, позволяющая добавить нового клиента
         insert_new_clients(cur, first_name='Aleks', last_name='Mamontov', email='mamontov@mail.ru',
-                           phone=['89621021102'])
+                           phone=['89621021102', '89652365454'])
         insert_new_clients(cur, first_name='Aleks', last_name='Giglin', email='gilin@mail.ru',
                            phone=['86554658322'])
 
@@ -139,18 +149,14 @@ def main():
         add_phone_clients(cur, 1, '89625656366')
 
         # Функция, позволяющая изменить данные о клиенте
-        change_info_clients(cur, 1, first_name='Алексей', email='ale@mail.ru', phone=['8963256568'])
+        change_info_clients(cur, 1, first_name='Алексей', email='ale@mail.ru', phone='89144195726')
 
         # Функция, позволяющая удалить телефон для существующего клиента
-        drop_phone_clients(cur, 1, '89625656366')
+        drop_phone_clients(cur, 1, '89652365454')
 
         # Функция, позволяющая удалить существующего клиента
         delete_clients(cur, 2)
 
         # Функция, позволяющая найти клиента по его данным (имени, фамилии, email-у или телефону)
-        search = select_clients(cur, first_name='Aleks', last_name='Mamontov')
+        search = select_clients(cur, first_name='Алексей', last_name='Mamontov', phone=['89144195726'])
         print(search)
-
-
-if __name__ == '__main__':
-    main()
