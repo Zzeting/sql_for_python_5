@@ -160,3 +160,5 @@ with psycopg2.connect(database='postgres', user='postgres', password='1234567890
         # Функция, позволяющая найти клиента по его данным (имени, фамилии, email-у или телефону)
         search = select_clients(cur, first_name='Алексей', last_name='Mamontov', phone=['89144195726'])
         print(search)
+
+conn.close()
